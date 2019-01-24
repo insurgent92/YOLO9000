@@ -27,7 +27,7 @@ class Darknet(BaseModel):
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
@@ -48,9 +48,9 @@ def make_layers(cfg, batch_norm=False):
             out_channels = int(v.split('_')[1])
             conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1)
             if batch_norm:
-                layers += [conv2d, nn.BatchNorm2d(out_channels), nn.ReLU(inplace=True)]
+                layers += [conv2d, nn.BatchNorm2d(out_channels), nn.LeakyReLU(inplace=True)]
             else:
-                layers += [conv2d, nn.ReLU(inplace=True)]
+                layers += [conv2d, nn.LeakyReLU(inplace=True)]
             in_channels = out_channels
     return nn.Sequential(*layers)
 

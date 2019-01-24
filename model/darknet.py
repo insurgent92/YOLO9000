@@ -13,6 +13,7 @@ class Darknet(BaseModel):
         self.features = features
         self.classifier = nn.Sequential(
             nn.Conv2d(1024, 1000, kernel_size=1, padding=1),
+            nn.Linear(1000, num_classes, bias=True),
             nn.AvgPool2d(num_classes)
         )
         if init_weights:

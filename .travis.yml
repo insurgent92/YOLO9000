@@ -1,0 +1,12 @@
+dist: xenial
+
+language: python
+
+python:
+    - "3.6"
+
+script:
+    - make test
+
+notifications:
+  slack: deepbaksuvision:hMb1AfIwg9B0oEiyYPtSohIT

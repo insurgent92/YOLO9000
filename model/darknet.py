@@ -1,85 +1,87 @@
 import torch
+import json
 from torch import nn
+import torch.nn.functional as F
 from base import BaseModel
 
-__all__ = [
-    'darknet', 'darknet19'
-]
-
-class Darknet(BaseModel):
-    def __init__(self, features, num_classes=1000, init_weights=True):
-        super(Darknet, self).__init__()
-        self.num_classes = num_classes
-        self.features = features
-        self.classifier = nn.Sequential(
-            nn.Conv2d(1024, 1000, kernel_size=1, padding=1),
-            nn.Linear(1000, num_classes, bias=True),
-            nn.AvgPool2d(num_classes)
-        )
-        if init_weights:
-            self._initialize_weights()
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        x = x.view(-1, self.num_classes)
-        return x
-
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.constant_(m.bias, 0)
-
-def make_layers(cfg, batch_norm=False):
-    layers = []
-    in_channels = 3
-    for v in cfg:
-        if v == 'M':
-            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-        else:
-            kernel_size = int(v.split('_')[0])
-            out_channels = int(v.split('_')[1])
-            conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1)
-            if batch_norm:
-                layers += [conv2d, nn.BatchNorm2d(out_channels), nn.LeakyReLU(inplace=True)]
-            else:
-                layers += [conv2d, nn.LeakyReLU(inplace=True)]
-            in_channels = out_channels
-    return nn.Sequential(*layers)
-
-cfg = {
-    '19': ['3_32', 'M', '3_64', 'M', '3_128', '1_64', '3_128', 'M', '3_256', '1_128', '3_256', 'M', 
-    '3_512', '1_256', '3_512', '1_256', '3_512', 'M', '3_1024', '1_512', '3_1024', '1_512', '3_1024']
+model_paths = {
+    'darknet19': 'model_zoo/darknet19-visionNoob.pth'
 }
 
-def darknet19(pretrained=False, **kwargs):
-    """Dartnet 19-layer model (configuration "19")
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    if pretrained:
-        kwargs['init_weights'] = False
-    model = Darknet(make_layers(cfg['19']), **kwargs)
-    # if pretrained:
-    #    model.load_state_dict(model_zoo.load_url(model_urls['vgg11']))
-    return model
+class GlobalAvgPool2d(nn.Module):
+    def __init__(self):
+        super(GlobalAvgPool2d, self).__init__()
 
-def darknet19_bn(pretrained=False, **kwargs):
-    """Dartnet 19-layer model (configuration "19")
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    """
-    if pretrained:
-        kwargs['init_weights'] = False
-    model = Darknet(make_layers(cfg['19'], batch_norm=True), **kwargs)
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['vgg11']))
-    return model
+    def forward(self, x):
+        N = x.data.size(0)
+        C = x.data.size(1)
+        H = x.data.size(2)
+        W = x.data.size(3)
+        x = F.avg_pool2d(x, (H, W))
+        x = x.view(N, C)
+        return x
+
+def make_layers(json_path):
+    model_config = json.load(open("darknet19.json"))
+    models = torch.nn.ModuleList()
+    conv_id = 0
+    channel_in = 3
+    for block in model_config:        
+        if not 'type' in model_config[block]:
+            continue
+        if model_config[block]['type'] == 'convolutional_3x3':
+            conv_id = conv_id + 1
+            model = nn.Sequential()
+
+            channel_out = model_config[block]['layers']['conv']
+
+            model.add_module('conv{0}'.format(conv_id), nn.Conv2d(channel_in, channel_out, kernel_size=3, padding=1, bias=False))
+            model.add_module('bn{0}'.format(conv_id), nn.BatchNorm2d(channel_out))
+            model.add_module('leaky{0}'.format(conv_id), nn.LeakyReLU(0.1, inplace=True))
+            models.append(model)
+            channel_in = channel_out
+
+        if model_config[block]['type'] == 'convolutional_1x1':
+            conv_id = conv_id + 1
+            model = nn.Sequential()
+            
+            channel_out = model_config[block]['layers']['conv']
+
+            model.add_module('conv{0}'.format(conv_id), nn.Conv2d(channel_in, channel_out, kernel_size=1, padding=1, bias=False))
+            model.add_module('bn{0}'.format(conv_id), nn.BatchNorm2d(channel_out))
+            model.add_module('leaky{0}'.format(conv_id), nn.LeakyReLU(0.1, inplace=True))
+            models.append(model)
+            channel_in = channel_out
+
+        if model_config[block]['type'] == 'maxpool':
+            model = nn.MaxPool2d(kernel_size=2, stride=2)
+            models.append(model)
+
+        if model_config[block]['type'] == 'last_convolutional':
+            model = nn.Sequential()
+            conv_id = conv_id + 1
+            model.add_module('conv{0}'.format(conv_id),  nn.Conv2d(1024, 1000, kernel_size=1, stride=1, bias=True))
+            models.append(model)
+        
+        if model_config[block]['type'] == 'avgpool':
+            model = GlobalAvgPool2d()
+            models.append(model)
+        
+        if model_config[block]['type'] == 'softmax':
+            model = nn.Softmax()
+            models.append(model)
+
+    return models
+
+class Darknet(BaseModel):
+    def __init__(self, json_path="darknet19.json", pretrained=False):
+        super(Darknet, self).__init__()
+        self.models = make_layers(json_path)
+
+        if pretrained:            
+            self.load_state_dict(torch.load(model_paths['darknet19']))
+            
+    def forward(self, x):
+        for module in self.models:
+            x = module(x)
+        return x

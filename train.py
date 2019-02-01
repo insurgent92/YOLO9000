@@ -2,13 +2,14 @@ import os
 import json
 import argparse
 import torch
+from torch import nn 
 import data_loader.data_loaders as module_data
 import model.loss as module_loss
 import model.metric as module_metric
-import model.model as module_arch
+import model.darknet as darknet_arch
+
 from trainer import Trainer
 from utils import Logger
-
 
 def get_instance(module, name, config, *args):
     return getattr(module, config[name]['type'])(*args, **config[name]['args'])
@@ -16,14 +17,13 @@ def get_instance(module, name, config, *args):
 def main(config, resume):
     train_logger = Logger()
 
+    # build model architecture
+    model = get_instance(darknet_arch, 'arch', config)
+
     # setup data_loader instances
     data_loader = get_instance(module_data, 'data_loader', config)
     valid_data_loader = data_loader.split_validation()
 
-    # build model architecture
-    model = get_instance(module_arch, 'arch', config)
-    print(model)
-    
     # get function handles of loss and metrics
     loss = getattr(module_loss, config['loss'])
     metrics = [getattr(module_metric, met) for met in config['metrics']]

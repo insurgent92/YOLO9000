@@ -3,9 +3,10 @@ import json
 from torch import nn
 import torch.nn.functional as F
 from base import BaseModel
+import torch.utils.model_zoo as model_zoo
 
-model_paths = {
-    'darknet19': 'model_zoo/darknet19-visionNoob.pth'
+model_urls = {
+    'darknet19': 'https://s3.ap-northeast-2.amazonaws.com/deepbaksuvision/darknet19-visionNoob-e9a67c96.pth'
 }
 
 class GlobalAvgPool2d(nn.Module):
@@ -79,7 +80,7 @@ class Darknet(BaseModel):
         self.models = make_layers(json_path)
 
         if pretrained:            
-            self.load_state_dict(torch.load(model_paths['darknet19']))
+            self.load_state_dict(model_zoo.load_url(model_urls['darknet19']))
             
     def forward(self, x):
         for module in self.models:

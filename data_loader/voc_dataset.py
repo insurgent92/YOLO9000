@@ -48,7 +48,7 @@ class VocDetection(data.Dataset):
             assert isinstance(path, str)
 
         return sorted(path_list,
-                   key=lambda filepath: int(filepath.split("/")[-1].split(".")[0]))
+                   key=lambda filepath: int(filepath.split(os.sep)[-1].split(".")[0]))
 
     def __getitem__(self, index):
         """

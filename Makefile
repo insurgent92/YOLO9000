@@ -3,6 +3,7 @@ build:
 
 test:
 	pip3 install -r tests/requirements.txt
+	pip3 install -r requirements.txt
 	pytest --pylint --mypy --doctest-modules
 
 format:

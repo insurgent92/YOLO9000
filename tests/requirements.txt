@@ -7,13 +7,3 @@ pylint
 isort
 black
 pipreqs
-tqdm==4.29.0
-torchvision==0.2.1
-torch==1.0.0
-imgaug==0.2.6
-numpy==1.15.1
-matplotlib==2.2.2
-pyclustering==0.8.2
-torchsummary==1.5.1
-Pillow==5.4.1
-scikit_learn==0.20.2
